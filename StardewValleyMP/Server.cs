@@ -18,6 +18,7 @@ namespace StardewValleyMP
     {
         public bool playing = false;
         public bool delayUpdates = false;
+        public List<Client> joinLast=new List<Client>();
 
         public Server()
         {
@@ -35,6 +36,21 @@ namespace StardewValleyMP
                     clients.Remove( clients[ i ] );
                     --i;
                     continue;
+                }
+            }
+
+
+            foreach (Client client in joinLast)
+            {
+                if (client.stage != Client.NetStage.WaitingForStart)
+                {
+                    client.update();
+                }
+                else
+                {
+                    sendDataInfo(client);
+                    joinLast.Remove(client);
+                    break;
                 }
             }
 
@@ -109,7 +125,11 @@ namespace StardewValleyMP
                 ClientFarmerDataPacket.addFixedLocationToOurWorld(pair.Value, pair.Key, client);
             }
             client.addDuringLoading.Clear();
-            client.update();
+            joinLast.Add(client);
+        }
+
+        public void sendDataInfo(Client client)
+        {
             sendInfo(client);
             if (client.farmer.spouse != null)
             {
@@ -123,7 +143,7 @@ namespace StardewValleyMP
             MovingStatePacket move = new MovingStatePacket(0, Game1.player);
             client.send(loc);
             client.send(move);
-            foreach(Server.Client c in this.clients)
+            foreach (Server.Client c in this.clients)
             {
                 if (c == client) continue;
                 loc = new LocationPacket(c.id, Multiplayer.getUniqueLocationName(c.farmer.currentLocation));
@@ -139,16 +159,17 @@ namespace StardewValleyMP
             MemoryStream tmp = new MemoryStream();
             SaveGame.serializer.Serialize(tmp, SaveGame.loaded);
             WorldDataPacket world = new WorldDataPacket(Encoding.UTF8.GetString(tmp.ToArray()));
-            OtherFarmerDataPacket others = new OtherFarmerDataPacket();
-            others.others.Add(0, Util.serialize<Farmer>(SaveGame.loaded.player));
-
-            foreach (Client other in clients)
+            foreach (Client cs in clients)
             {
-                if (client == other) continue;
-                others.others.Add(other.id, other.farmerXml);
+                OtherFarmerDataPacket others = new OtherFarmerDataPacket();
+                others.others.Add(0, Util.serialize<Farmer>(SaveGame.loaded.player));
+                foreach (Client other in clients)
+                {
+                    if (cs == other) continue;
+                    others.others.Add(other.id, other.farmerXml);
+                }
+                cs.send(others);
             }
-            client.send(others);
-
             // Send world info
             client.send(world);
 

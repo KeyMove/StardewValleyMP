@@ -1142,7 +1142,11 @@ namespace StardewValleyMP.Vanilla
                     {
                         (locationFromName as FarmHouse).resetForPlayerEntry();
                     }
-                    catch (Exception e) { Log.Async("Exception reseting " + Game1.player.name + "'s house: " + e); }
+                    catch (Exception e)
+                    {
+                        //Log.Async("Game1:" + Game1.player.ToString());
+                        //Log.Async("Exception reseting " + Game1.player.Name + "'s house: " + e);
+                    }
                     Game1.player = oldPlayer;
                     ////////////////////////////////////////
                     using (List<Furniture>.Enumerator enumerator2 = (locationFromName as FarmHouse).furniture.GetEnumerator())

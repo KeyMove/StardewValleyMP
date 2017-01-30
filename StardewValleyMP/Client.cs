@@ -36,6 +36,11 @@ namespace StardewValleyMP
 
         public bool tempStopUpdating = false;
 
+        public bool isConnected
+        {
+            get { return socket.Connected; }
+        }
+
         public Client( TcpClient theSocket )
         {
             socket = theSocket;
