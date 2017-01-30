@@ -52,6 +52,66 @@ namespace StardewValleyMP.Vanilla
 
         private bool loading;
 
+        private List<string> PlayerNameCache = new List<string>();
+        private int MenuCount = 0;
+        private string selfName="";
+
+        string getPlayerName(string path)
+        {
+            SaveGame saveGame = new SaveGame();
+            string[] folderPath = new string[] { Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "StardewValley", "Saves", path, path };
+            string str = Path.Combine(folderPath);
+            if (!File.Exists(str))
+            {
+                str = string.Concat(str, ".xml");
+                if (!File.Exists(str))
+                {
+                    Game1.gameMode = 9;
+                    Game1.debugOutput = "File does not exist (-_-)";
+                    return "";
+                }
+            }
+            Stream stream = null;
+            try
+            {
+                stream = File.Open(str, FileMode.Open);
+            }
+            catch (IOException oException)
+            {
+                Game1.gameMode = 9;
+                Game1.debugOutput = Game1.parseText(oException.Message);
+                if (stream != null)
+                {
+                    stream.Close();
+                }
+                return "";
+            }
+            saveGame = (SaveGame)SaveGame.serializer.Deserialize(stream);
+            stream.Close();
+            return (selfName= saveGame.player.Name);
+        }
+
+        void UpdatePlayerNameCache()
+        {
+            PlayerNameCache.Clear();
+            foreach (ChatEntry ce in ChatMenu.chat)
+            {
+                if (ce.message.Contains("Currently playing: "))
+                {
+                    string[] s = ce.message.Substring(ce.message.IndexOf("Currently playing: ") + "Currently playing: ".Length).Split(',');
+                    foreach (string ps in s)
+                    {
+                        PlayerNameCache.Add(ps);
+                    }
+                }
+                if (ce.message.Contains(" has connected."))
+                {
+                    PlayerNameCache.Add(ce.message.Substring(0,ce.message.IndexOf(" has connected.")));
+                }
+
+            }
+        }
+
         public NewLoadMenu() : base(Game1.viewport.Width / 2 - (1100 + IClickableMenu.borderWidth * 2) / 2, Game1.viewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2, 1100 + IClickableMenu.borderWidth * 2, 600 + IClickableMenu.borderWidth * 2, false)
         {
             this.upArrow = new ClickableTextureComponent(new Rectangle(this.xPositionOnScreen + this.width + Game1.tileSize / 4, this.yPositionOnScreen + Game1.tileSize / 4, 11 * Game1.pixelZoom, 12 * Game1.pixelZoom), Game1.mouseCursors, new Rectangle(421, 459, 11, 12), (float)Game1.pixelZoom, false);
@@ -309,12 +369,14 @@ namespace StardewValleyMP.Vanilla
                     {
                         Multiplayer.mode = Mode.Host;
                         didModeSelect = true;
+                        getPlayerName(this.saveGames[this.selected].favoriteThing);
                     }
                     r.Y = buttonY3;
                     if (r.Contains(x, y))
                     {
                         Multiplayer.mode = Mode.Client;
                         didModeSelect = true;
+                        getPlayerName(this.saveGames[this.selected].favoriteThing);
                     }
                 }
                 else if (modeInit == null)
@@ -342,7 +404,7 @@ namespace StardewValleyMP.Vanilla
                         MultiplayerMod.ModConfig.WriteConfig();
                         modeInit.Start();
                         ChatMenu.chat.Clear();
-                        ChatMenu.chat.Add(new ChatEntry(null, "NOTE: Chat doesn't work on the connection menu."));
+                        //ChatMenu.chat.Add(new ChatEntry(null, "NOTE: Chat doesn't work on the connection menu."));
                     }
                 }
                 else if (Multiplayer.problemStarting)
@@ -355,6 +417,14 @@ namespace StardewValleyMP.Vanilla
                         readyToLoad = false;
 
                         didModeSelect = false;
+                        if (modeInit != null)
+                        {
+                            try
+                            {
+                                modeInit.Abort();
+                            }
+                            catch { }
+                        }
                         modeInit = null;
                         Multiplayer.problemStarting = false;
                     }
@@ -365,7 +435,7 @@ namespace StardewValleyMP.Vanilla
                     if (r.Contains(x, y))
                     {
                         StardewModdingAPI.Log.Async("Stopping listener, beginning loading");
-                        Multiplayer.listener.Server.Close();
+                        //Multiplayer.listener.Server.Close();
                         readyToLoad = true;
                     }
                 }
@@ -478,6 +548,7 @@ namespace StardewValleyMP.Vanilla
                         {
                             if (portBox == null)
                             {
+                                NewSaveGame.InitLoad();
                                 if (Multiplayer.mode == Mode.Client)
                                 {
                                     ipBox = new TextBox(Game1.content.Load<Texture2D>("LooseSprites\\textBox"), null, Game1.smallFont, Game1.textColor);
@@ -514,20 +585,45 @@ namespace StardewValleyMP.Vanilla
 
                     if (!readyToLoad) return;
 
-                    if (!NewSaveGame.Load(this.saveGames[this.selected].favoriteThing))
-                    {
-                        didModeSelect = false;
-                        this.loading = false;
-                        this.timerToLoad = 0;
-                        this.selected = -1;
-                        Util.SetInstanceField(typeof(TitleMenu), Game1.activeClickableMenu, "subMenu", new NewLoadMenu());
-                        return;
-                    }
-                    Multiplayer.lobby = false;
-                    this.timerToLoad = 0;
+                    //if (!NewSaveGame.Load(this.saveGames[this.selected].favoriteThing))
+                    //{
+                    //    didModeSelect = false;
+                    //    this.loading = false;
+                    //    this.timerToLoad = 0;
+                    //    this.selected = -1;
+                    //    Util.SetInstanceField(typeof(TitleMenu), Game1.activeClickableMenu, "subMenu", new NewLoadMenu());
+                    //    return;
+                    //}
 
                     ////////////////////////////////////////
-                    NewSaveGame.Load(this.saveGames[this.selected].favoriteThing);
+                    if (Multiplayer.mode == Mode.Client)
+                    {
+                        if (ChatMenu.chat.Count != MenuCount)
+                        {
+                            MenuCount = ChatMenu.chat.Count;
+                            UpdatePlayerNameCache();
+                        }
+                        if (NewSaveGame.CheckLoadClient(this.saveGames[this.selected].favoriteThing))
+                            return;
+                        if(Multiplayer.client==null)
+                        {
+                            Multiplayer.problemStarting = true;
+                            return;
+                        }
+                        if (!Multiplayer.client.isConnected)
+                        {
+                            Multiplayer.problemStarting = true;
+                            return;
+                        }
+                        this.timerToLoad = 0;
+                        Multiplayer.lobby = false;
+                    }
+                    else {
+                        Multiplayer.lobby = false;
+                        this.timerToLoad = 0;
+                        NewSaveGame.Load(this.saveGames[this.selected].favoriteThing);
+                    }
+                    //Log.Async("Do");
                     for (int i = 0; i < this.saveGames.Count; i++)
                     {
                         if (i != this.selected)
@@ -629,21 +725,66 @@ namespace StardewValleyMP.Vanilla
                     y = buttonY3;
                     IClickableMenu.drawTextureBox(b, Game1.mouseCursors, new Rectangle(384, 373, 18, 18), x, y, w, h, new Rectangle(x, y, w, h).Contains(Game1.getOldMouseX(), Game1.getOldMouseY()) ? Color.Wheat : Color.White, (float)Game1.pixelZoom, true);
                     SpriteText.drawString(b, str, x + w / 2 - SpriteText.getWidthOfString(str) / 2, y + h / 2 - SpriteText.getHeightOfString(str) / 2);
+                    x = buttonX;
+                    y = buttonY1;
+                    w = buttonW;
+                    h = SpriteText.getHeightOfString("T") + 20;
+                    SpriteText.drawString(b, "玩家列表", width / 2 - SpriteText.getWidthOfString("玩家列表") / 2, 40);
+                    //Util.drawStr("Other players: ", x, buttonY1, Color.White);
+                    IClickableMenu.drawTextureBox(b, Game1.mouseCursors, new Rectangle(384, 373, 18, 18), x, y, w / 2, h, Color.White, (float)Game1.pixelZoom, true);
+                    Util.drawStr(selfName, x + 25, y, Color.White);
+                    foreach (Server.Client f in Multiplayer.server.clients)
+                    {
+                        y += h;
+                        IClickableMenu.drawTextureBox(b, Game1.mouseCursors, new Rectangle(384, 373, 18, 18), x, y, w / 2, h, Color.White, (float)Game1.pixelZoom, true);
+                        Util.drawStr(f.farmer!=null?f.farmer.Name:"null", x + 25, y, Color.White);
+                    }
                 }
                 else if (Multiplayer.client != null)
                 {
-                    int x = buttonX, y = buttonY1, w = buttonW, h = buttonH;
+                    int x = buttonX, y = buttonY1, w = buttonW, h = SpriteText.getHeightOfString("T") + 20;
 
-                    /*Util.drawStr("Other players: ", x, buttonY1, Color.White);
-                    foreach (KeyValuePair< byte, Farmer > other in Multiplayer.client.others)
+                    if (Multiplayer.client.others.Count == 0 && PlayerNameCache.Count == 0)
                     {
-                        String str_ = "<Client " + (int)(other.Key) + ">";
-                        if (other.Value != null)
-                            str_ = other.Value.name;
+                        SpriteText.drawString(b, "Connect Server...", width / 2 - SpriteText.getWidthOfString("Connect Server...") / 2, height / 2 - h / 2);
+                    }
+                    else
+                    {
+                        SpriteText.drawString(b, "玩家列表", width / 2 - SpriteText.getWidthOfString("玩家列表") / 2, 40);
+                        //Util.drawStr("Other players: ", x, buttonY1, Color.White);
+                        IClickableMenu.drawTextureBox(b, Game1.mouseCursors, new Rectangle(384, 373, 18, 18), x, y, w / 2, h, Color.White, (float)Game1.pixelZoom, true);
+                        Util.drawStr(selfName, x + 25, y, Color.White);
+                        if (Multiplayer.client.others.Count != 0)
+                        {
+                            foreach (KeyValuePair<byte, Farmer> other in Multiplayer.client.others)
+                            {
+                                String str_ = "<Client " + (int)(other.Key) + ">";
+                                if (other.Value != null)
+                                    str_ = other.Value.name;
 
-                        y += 30;
-                        Util.drawStr(str_, x + 25, y, Color.White);
-                    }*/
+                                y += h;
+                                IClickableMenu.drawTextureBox(b, Game1.mouseCursors, new Rectangle(384, 373, 18, 18), x, y, w / 2, h, Color.White, (float)Game1.pixelZoom, true);
+                                Util.drawStr(str_, x + 25, y, Color.White);
+                            }
+                        }
+                        else
+                        {
+                            foreach (string name in PlayerNameCache)
+                            {
+                                y += h;
+                                IClickableMenu.drawTextureBox(b, Game1.mouseCursors, new Rectangle(384, 373, 18, 18), x, y, w / 2, h, Color.White, (float)Game1.pixelZoom, true);
+                                Util.drawStr(name, x + 25, y, Color.White);
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    if (modeInit != null && Multiplayer.mode == Mode.Client)
+                    {
+                        int x = buttonX, y = buttonY1, w = buttonW, h = SpriteText.getHeightOfString("T") + 20;
+                        SpriteText.drawString(b, "Connect Server...", width / 2 - SpriteText.getWidthOfString("Connect Server...") / 2, height / 2 - h / 2);
+                    }
                 }
 
                 base.draw(b);

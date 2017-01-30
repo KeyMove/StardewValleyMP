@@ -40,13 +40,13 @@ namespace StardewValleyMP
 
             if (Multiplayer.lobby) return;
 
-            if ( clients.Count == 0 )
-            {
-                ChatMenu.chat.Add(new ChatEntry(null, "No more clients."));
-                Multiplayer.mode = Mode.Singleplayer;
-                Multiplayer.server = null;
-                return;
-            }
+            //if ( clients.Count == 0 )
+            //{
+            //    ChatMenu.chat.Add(new ChatEntry(null, "No more clients."));
+            //    Multiplayer.mode = Mode.Singleplayer;
+            //    Multiplayer.server = null;
+            //    return;
+            //}
 
             if (playing && Game1.player != null)
             {
@@ -100,6 +100,59 @@ namespace StardewValleyMP
                     Thread.Sleep(10);
                 }
             }
+        }
+
+        public void JoinPlayer(Client client)
+        {
+            foreach (KeyValuePair<string, GameLocation> pair in client.addDuringLoading)
+            {
+                ClientFarmerDataPacket.addFixedLocationToOurWorld(pair.Value, pair.Key, client);
+            }
+            client.addDuringLoading.Clear();
+            client.update();
+            sendInfo(client);
+            if (client.farmer.spouse != null)
+            {
+                NPC npc = Game1.getCharacterFromName(client.farmer.spouse);
+                if (npc != null)
+                    npc.setMarried(true);
+            }
+            //Multiplayer.locationChange()
+            //client.farmer.currentLocation.farmers.Add()
+            LocationPacket loc = new LocationPacket(0, Multiplayer.getUniqueLocationName(Game1.player.currentLocation));
+            MovingStatePacket move = new MovingStatePacket(0, Game1.player);
+            client.send(loc);
+            client.send(move);
+            foreach(Server.Client c in this.clients)
+            {
+                if (c == client) continue;
+                loc = new LocationPacket(c.id, Multiplayer.getUniqueLocationName(c.farmer.currentLocation));
+                move = new MovingStatePacket(c.id, c.farmer);
+                client.send(loc);
+                client.send(move);
+            }
+            client.update();
+        }
+
+        public void sendInfo(Client client)
+        {
+            MemoryStream tmp = new MemoryStream();
+            SaveGame.serializer.Serialize(tmp, SaveGame.loaded);
+            WorldDataPacket world = new WorldDataPacket(Encoding.UTF8.GetString(tmp.ToArray()));
+            OtherFarmerDataPacket others = new OtherFarmerDataPacket();
+            others.others.Add(0, Util.serialize<Farmer>(SaveGame.loaded.player));
+
+            foreach (Client other in clients)
+            {
+                if (client == other) continue;
+                others.others.Add(other.id, other.farmerXml);
+            }
+            client.send(others);
+
+            // Send world info
+            client.send(world);
+
+            client.stage = Client.NetStage.Playing;
         }
 
         public void broadcastInfo()

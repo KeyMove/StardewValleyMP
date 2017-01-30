@@ -40,6 +40,354 @@ namespace StardewValleyMP.Vanilla
             return true;
         }
 
+        public static void InitLoad()
+        {
+            loader = null;
+            Name = "";
+        }
+
+        static bool isLink = false;
+        static IEnumerator<int> loader = null;
+        public static String Name="";
+        public static bool CheckLoadClient(string filename)
+        {
+            if (loader == null)
+                loader = getLoadClientEnumerator(filename);
+            if (Multiplayer.client.isConnected)
+                isLink = true;
+            if (isLink)
+            {
+                if (Multiplayer.client==null)return false;
+                if (!Multiplayer.client.isConnected) return false;
+            }
+            int v = loader.Current;
+            loader.MoveNext();
+            if (v>0)
+            {
+                Game1.currentLoader = loader;
+                Game1.gameMode = 6;
+                Game1.loadingMessage = "Loading...";
+                return false;
+            }
+            return true;
+        }
+
+        public static IEnumerator<int> getLoadClientEnumerator(string file)
+        {
+            Log.Async("startload");
+            SaveGame saveGame = new SaveGame();
+            string[] folderPath = new string[] { Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "StardewValley", "Saves", file, file };
+            string str = Path.Combine(folderPath);
+            if (!File.Exists(str))
+            {
+                str = string.Concat(str, ".xml");
+                if (!File.Exists(str))
+                {
+                    Game1.gameMode = 9;
+                    Game1.debugOutput = "File does not exist (-_-)";
+                    Log.Async("File not find");
+                    yield break;
+                }
+            }
+            Stream stream = null;
+            try
+            {
+                stream = File.Open(str, FileMode.Open);
+                goto Label0;
+            }
+            catch (IOException oException)
+            {
+                Game1.gameMode = 9;
+                Game1.debugOutput = Game1.parseText(oException.Message);
+                if (stream != null)
+                {
+                    stream.Close();
+                }
+            }
+            yield break;
+        Label0:
+            Log.Async("load");
+            SaveGame.loaded = saveGame=(SaveGame)SaveGame.serializer.Deserialize(stream);
+            Name = saveGame.player.name;
+            stream.Close();
+            //Log.Async(Multiplayer.client.stage.ToString());
+            while (Multiplayer.client.stage != Client.NetStage.Waiting)
+            {
+                try
+                {
+                    Multiplayer.client.update();
+                    if (Multiplayer.client == null)
+                    {
+                        Log.Async("Bad connection or something");
+                        yield break;
+                    }
+                    if (Multiplayer.client.stage == Client.NetStage.WaitingForID && Multiplayer.client.id != 255)
+                    {
+                        String xml = File.ReadAllText(str);
+                        ClientFarmerDataPacket farmerData = new ClientFarmerDataPacket(xml);
+                        Multiplayer.client.send(farmerData);
+
+                        Multiplayer.client.stage = Client.NetStage.WaitingForWorldData;
+                    }
+                }
+                catch (Exception e) { Log.Async("Exception loading world: " + e); }
+                //Log.Async(Multiplayer.client.stage.ToString());
+                yield return 0;
+            }
+            yield return 1;
+
+            //Log.Async(Multiplayer.client.stage.ToString());
+            Multiplayer.locations.Clear();
+            NPCMonitor.reset();
+            Log.Async("MP loading done");
+            ////////////////////////////////////////
+
+
+            Game1.whichFarm = SaveGame.loaded.whichFarm;
+            Game1.stats = SaveGame.loaded.stats;
+            Game1.year = SaveGame.loaded.year;
+            //if (!skip) // I can't figure out all these day2+ location glitches. So this quick patch is here instead
+            Game1.loadForNewGame(true);
+            ////////////////////////////////////////
+            Multiplayer.addOtherLocations();
+            ////////////////////////////////////////
+            Game1.uniqueIDForThisGame = SaveGame.loaded.uniqueIDForThisGame;
+            Game1.random = new Random((int)((int)Game1.uniqueIDForThisGame / 2 + Game1.stats.DaysPlayed + 1));
+            Game1.weatherForTomorrow = SaveGame.loaded.weatherForTomorrow;
+            Game1.spawnMonstersAtNight = SaveGame.loaded.shouldSpawnMonsters;
+            Game1.dayOfMonth = SaveGame.loaded.dayOfMonth;
+            Game1.year = SaveGame.loaded.year;
+            Game1.currentSeason = SaveGame.loaded.currentSeason;
+            Game1.loadingMessage = "Loading Player...";
+            if (SaveGame.loaded.mine_permanentMineChanges != null)
+            {
+                Game1.mine = new MineShaft()
+                {
+                    mineLevel = SaveGame.loaded.mine_mineLevel,
+                    nextLevel = SaveGame.loaded.mine_nextLevel,
+                    permanentMineChanges = SaveGame.loaded.mine_permanentMineChanges,
+                    resourceClumps = SaveGame.loaded.mine_resourceClumps,
+                    lowestLevelReached = SaveGame.loaded.mine_lowestLevelReached
+                };
+            }
+            yield return 26;
+            Game1.isRaining = SaveGame.loaded.isRaining;
+            Game1.isLightning = SaveGame.loaded.isLightning;
+            Game1.isSnowing = SaveGame.loaded.isSnowing;
+            NewSaveGame.loadDataToFarmer(SaveGame.loaded.player, null);
+            Game1.player = SaveGame.loaded.player;
+            Game1.loadingMessage = "Loading Maps...";
+            yield return 36;
+            ////////////////////////////////////////
+            Farmer oldPlayer = Game1.player;
+            try
+            {
+                /*SaveGame.*/
+                loadDataToLocations(SaveGame.loaded.locations);
+
+                Game1.getLocationFromName("FarmHouse").resetForPlayerEntry();
+            }
+            catch (Exception e)
+            {
+                Log.Async("Exception loading locations: " + e);
+            }
+            Game1.player = oldPlayer;
+            ////////////////////////////////////////
+            yield return 50;
+            yield return 51;
+            Game1.isDebrisWeather = SaveGame.loaded.isDebrisWeather;
+            if (!Game1.isDebrisWeather)
+            {
+                Game1.debrisWeather.Clear();
+            }
+            else
+            {
+                Game1.populateDebrisWeatherArray();
+            }
+            yield return 53;
+            Game1.dailyLuck = SaveGame.loaded.dailyLuck;
+            yield return 54;
+            yield return 55;
+            try
+            {
+                Game1.bloomDay = SaveGame.loaded.bloomDay;
+                /*Game1.*/
+                setGraphicsForSeason();
+            }
+            catch (Exception e) { Log.Async("Exception doing seasonal graphics: " + e); }
+            yield return 56;
+            Game1.samBandName = SaveGame.loaded.samBandName;
+            Game1.elliottBookName = SaveGame.loaded.elliottBookName;
+            Game1.shippingTax = SaveGame.loaded.shippingTax;
+            Game1.cropsOfTheWeek = SaveGame.loaded.cropsOfTheWeek;
+            yield return 58;
+            Game1.mailbox = new Queue<string>(SaveGame.loaded.mailbox);
+            yield return 60;
+            FurniturePlacer.addAllFurnitureOwnedByFarmer();
+            yield return 63;
+            Game1.weddingToday = SaveGame.loaded.weddingToday;
+            Game1.loadingMessage = "Loading Mines...";
+            yield return 64;
+            Game1.loadingMessage = "Performing Miscellaneous Tasks...";
+            yield return 73;
+            Game1.farmerWallpaper = SaveGame.loaded.farmerWallpaper;
+            yield return 75;
+            Game1.updateWallpaperInFarmHouse(Game1.farmerWallpaper);
+            yield return 77;
+            Game1.FarmerFloor = SaveGame.loaded.FarmerFloor;
+            yield return 79;
+            Game1.updateFloorInFarmHouse(Game1.FarmerFloor);
+            Game1.options.musicVolumeLevel = SaveGame.loaded.musicVolume;
+            Game1.options.soundVolumeLevel = SaveGame.loaded.soundVolume;
+            yield return 83;
+            Game1.countdownToWedding = SaveGame.loaded.countdownToWedding;
+            yield return 85;
+            yield return 87;
+            Game1.chanceToRainTomorrow = SaveGame.loaded.chanceToRainTomorrow;
+            yield return 88;
+            yield return 95;
+            Game1.currentSongIndex = SaveGame.loaded.currentSongIndex;
+            Game1.fadeToBlack = true;
+            Game1.fadeIn = false;
+            Game1.fadeToBlackAlpha = 0.99f;
+            Vector2 vector2 = Game1.player.mostRecentBed;
+            if (Game1.player.mostRecentBed.X <= 0f)
+            {
+                Game1.player.position = new Vector2(192f, (float)(Game1.tileSize * 6));
+            }
+            Game1.removeFrontLayerForFarmBuildings();
+            Game1.addNewFarmBuildingMaps();
+            Game1.currentLocation = Game1.getLocationFromName("FarmHouse");
+            Game1.currentLocation.map.LoadTileSheets(Game1.mapDisplayDevice);
+            Game1.player.CanMove = true;
+            Game1.player.position = Utility.PointToVector2((Game1.getLocationFromName("FarmHouse") as FarmHouse).getBedSpot()) * (float)Game1.tileSize;
+            Game1.player.position.Y = Game1.player.position.Y + (float)(Game1.tileSize / 2);
+            Game1.player.position.X = Game1.player.position.X - (float)Game1.tileSize;
+            Game1.player.faceDirection(1);
+            Game1.minecartHighScore = SaveGame.loaded.minecartHighScore;
+            Game1.currentWallpaper = SaveGame.loaded.currentWallpaper;
+            Game1.currentFloor = SaveGame.loaded.currentFloor;
+            Game1.questOfTheDay = Utility.getQuestOfTheDay();
+            Game1.dishOfTheDay = SaveGame.loaded.dishOfTheDay;
+            Game1.options = SaveGame.loaded.options;
+            if (Game1.options != null)
+            {
+                Game1.options.reApplySetOptions();
+            }
+            else
+            {
+                Game1.options = new Options();
+            }
+            if (Game1.soundBank != null)
+            {
+                Game1.soundCategory.SetVolume(Game1.options.soundVolumeLevel);
+                Game1.musicCategory.SetVolume(Game1.options.musicVolumeLevel);
+                Game1.ambientCategory.SetVolume(Game1.options.ambientVolumeLevel);
+                Game1.footstepCategory.SetVolume(Game1.options.footstepVolumeLevel);
+            }
+            MultiplayerUtility.latestID = SaveGame.loaded.latestID;
+            Multiplayer.prevLatestId = MultiplayerUtility.latestID; // MINE
+            if (Game1.isRaining)
+            {
+                Game1.changeMusicTrack("rain");
+            }
+            Game1.checkForWedding();
+            Game1.updateWeatherIcon();
+            ////////////////////////////////////////
+            // This line was in the original.
+            //SaveGame.loaded = null;
+            ////////////////////////////////////////
+            Game1.currentLocation = Utility.getHomeOfFarmer(Game1.player);
+            Game1.currentLocation.lastTouchActionLocation = Game1.player.getTileLocation();
+            foreach (Item item in Game1.player.items)
+            {
+                if (item == null || !(item is Object))
+                {
+                    continue;
+                }
+                (item as Object).reloadSprite();
+            }
+            Game1.gameMode = 3;
+            ////////////////////////////////////////
+            //if ( Multiplayer.mode != Mode.Singleplayer )
+            //    Game1.exitActiveMenu();
+
+            if (Multiplayer.client != null)
+            {
+                Multiplayer.client.stage = Client.NetStage.Playing;
+                Multiplayer.client.tempStopUpdating = false;
+                Game1.player.position = Utility.PointToVector2((Game1.getLocationFromName("FarmHouse") as FarmHouse).getBedSpot()) * (float)Game1.tileSize;
+                Farmer expr_777_cp_0 = Game1.player;
+                expr_777_cp_0.position.Y = expr_777_cp_0.position.Y + (float)(Game1.tileSize / 2);
+                Farmer expr_795_cp_0 = Game1.player;
+                expr_795_cp_0.position.X = expr_795_cp_0.position.X - (float)Game1.tileSize;
+            }
+            if (Multiplayer.server != null)
+                Multiplayer.server.playing = true;
+            ////////////////////////////////////////
+            try
+            {
+                Game1.fixProblems();
+            }
+            catch (Exception exception)
+            {
+            }
+            Game1.playMorningSong();
+            if (Game1.weddingToday)
+            {
+                Game1.prepareSpouseForWedding();
+                Game1.checkForWedding();
+            }
+            ////////////////////////////////////////
+            // Since this runs each new day, the client will save too.
+            // Also, getting spouses to work correctly on each end. I think.
+            if (Multiplayer.mode == Mode.Host)
+            {
+                foreach (Server.Client client in Multiplayer.server.clients)
+                {
+                    if (client.farmer.spouse == null) continue;
+                    NPC npc = Game1.getCharacterFromName(client.farmer.spouse);
+                    if (npc == null) continue;
+                    npc.setMarried(true);
+                }
+            }
+            else if (Multiplayer.mode == Mode.Client)
+            {
+                foreach (KeyValuePair<byte, Farmer> other in Multiplayer.client.others)
+                {
+                    if (other.Value.spouse == null) continue;
+                    NPC npc = Game1.getCharacterFromName(other.Value.spouse);
+                    if (npc == null) continue;
+                    npc.setMarried(true);
+                }
+                var it = NewSaveGame.Save();
+                while (it.Current < 100)
+                {
+                    it.MoveNext();
+                    Thread.Sleep(10);
+                }
+            }
+            if (Multiplayer.mode != Mode.Singleplayer)
+            {
+                if (Game1.player.spouse != null)
+                {
+                    string spouse = Game1.player.spouse;
+                    if (spouse.EndsWith("_engaged"))
+                        spouse = spouse.Substring(0, spouse.Length - "_engaged".Length);
+
+                    var npc = Game1.getCharacterFromName(spouse);
+                    if (npc != null)
+                    {
+                        NPCUpdatePacket packet = new NPCUpdatePacket(npc);
+                        Multiplayer.sendFunc(packet);
+                    }
+                }
+            }
+            ////////////////////////////////////////
+            yield return 100;
+            yield break;
+        }
+
         public static IEnumerator<int> getLoadEnumerator(string file, bool skip = false)
         {
             SaveGame saveGame = new SaveGame();
@@ -378,6 +726,66 @@ namespace StardewValleyMP.Vanilla
         public static IEnumerator<int> Save( bool skipToFile = false)
         {
             return NewSaveGame.getSaveEnumerator( skipToFile );
+        }
+
+        public static SaveGame getWorldDataInfo()
+        {
+            ////////////////////////////////////////
+            ////////////////////////////////////////
+            SaveGame saveGame = new SaveGame()
+            {
+                player = Game1.player,
+                ////////////////////////////////////////
+                // MINE: .ToList()
+                // Not sure why this helps with all the weird bugs that come after 2-3 days in
+                // since I don't entirely understand why they happen in the first place.
+                locations = Game1.locations.ToList(),
+                ////////////////////////////////////////
+                currentSeason = Game1.currentSeason,
+                samBandName = Game1.samBandName,
+                elliottBookName = Game1.elliottBookName,
+                mailbox = Game1.mailbox.ToList<string>(),
+                dayOfMonth = Game1.dayOfMonth,
+                year = Game1.year,
+                farmerWallpaper = Game1.farmerWallpaper,
+                FarmerFloor = Game1.FarmerFloor,
+                countdownToWedding = Game1.countdownToWedding,
+                chanceToRainTomorrow = Game1.chanceToRainTomorrow,
+                dailyLuck = Game1.dailyLuck,
+                isRaining = Game1.isRaining,
+                isLightning = Game1.isLightning,
+                isSnowing = Game1.isSnowing,
+                isDebrisWeather = Game1.isDebrisWeather,
+                shouldSpawnMonsters = Game1.spawnMonstersAtNight,
+                weddingToday = Game1.weddingToday,
+                stats = Game1.stats,
+                whichFarm = Game1.whichFarm,
+                minecartHighScore = Game1.minecartHighScore,
+                uniqueIDForThisGame = Game1.uniqueIDForThisGame,
+                musicVolume = Game1.options.musicVolumeLevel,
+                soundVolume = Game1.options.soundVolumeLevel,
+                shippingTax = Game1.shippingTax,
+                cropsOfTheWeek = Game1.cropsOfTheWeek
+            };
+            if (Game1.mine != null)
+            {
+                saveGame.mine_lowestLevelReached = Game1.mine.lowestLevelReached;
+                saveGame.mine_mineLevel = Game1.mine.mineLevel;
+                saveGame.mine_nextLevel = Game1.mine.nextLevel;
+                saveGame.mine_permanentMineChanges = Game1.mine.permanentMineChanges;
+                saveGame.mine_resourceClumps = Game1.mine.resourceClumps;
+            }
+            saveGame.currentFloor = Game1.currentFloor;
+            saveGame.currentWallpaper = Game1.currentWallpaper;
+            saveGame.bloomDay = Game1.bloomDay;
+            saveGame.dishOfTheDay = Game1.dishOfTheDay;
+            saveGame.latestID = MultiplayerUtility.latestID;
+            saveGame.options = Game1.options;
+            saveGame.currentSongIndex = Game1.currentSongIndex;
+            saveGame.weatherForTomorrow = Game1.weatherForTomorrow;
+            ////////////////////////////////////////
+            //if ( saveToLoaded )
+            return saveGame;
         }
 
         public static IEnumerator<int> getSaveEnumerator(bool skipToFile = false)
