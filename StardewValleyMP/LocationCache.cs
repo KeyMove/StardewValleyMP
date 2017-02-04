@@ -243,7 +243,13 @@ namespace StardewValleyMP
             checkDebris();
             foreach (KeyValuePair<Type, Monitor> monitor in monitors)
             {
+                try { 
                 monitor.Value.check();
+                }
+                catch (Exception e)
+                {
+                    Log.Async(e.ToString());
+                }
             }
             checkLocationSpecificStuff();
         }

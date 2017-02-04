@@ -153,12 +153,8 @@ namespace StardewValleyMP
             }
             client.update();
         }
-
-        public void sendInfo(Client client)
+        public void sendPlayerInfo(Client client)
         {
-            MemoryStream tmp = new MemoryStream();
-            SaveGame.serializer.Serialize(tmp, SaveGame.loaded);
-            WorldDataPacket world = new WorldDataPacket(Encoding.UTF8.GetString(tmp.ToArray()));
             foreach (Client cs in clients)
             {
                 OtherFarmerDataPacket others = new OtherFarmerDataPacket();
@@ -170,6 +166,13 @@ namespace StardewValleyMP
                 }
                 cs.send(others);
             }
+        }
+        public void sendInfo(Client client)
+        {
+            MemoryStream tmp = new MemoryStream();
+            SaveGame.serializer.Serialize(tmp, SaveGame.loaded);
+            WorldDataPacket world = new WorldDataPacket(Encoding.UTF8.GetString(tmp.ToArray()));
+            sendPlayerInfo(client);
             // Send world info
             client.send(world);
 
@@ -251,7 +254,11 @@ namespace StardewValleyMP
                 client.update();
 
             }
-
+            if (!clients.Contains(client))
+                if (!Multiplayer.lobby)
+                {
+                    JoinPlayer(client);
+                }
             clients.Add(client);
         }
 
@@ -323,6 +330,7 @@ namespace StardewValleyMP
                     if ( farmer != null && farmer.currentLocation != null )
                     {
                         farmer.currentLocation.farmers.Remove(farmer);
+                        //server.sendPlayerInfo(this); //sendPlayerInfo(this);
                     }
                     socket = null;
                     return;

@@ -45,6 +45,7 @@ namespace StardewValleyMP.Vanilla
             this.waitingText = new SparklingText(Game1.dialogueFont, "Waiting on host", Color.DodgerBlue, Color.Black * 0.001f, false, 0.1, 1500, Game1.tileSize / 2, 500);
             ////////////////////////////////////////
             this.saveText = new SparklingText(Game1.dialogueFont, "Your progress has been saved.", Color.LimeGreen, Color.Black * 0.001f, false, 0.1, 1500, Game1.tileSize / 2, 500);
+            //Log.Async("new Save");
         }
 
         public override void receiveRightClick(int x, int y, bool playSound = true)
@@ -83,7 +84,7 @@ namespace StardewValleyMP.Vanilla
                 return;
             }
             ////////////////////////////////////////
-            
+            //Log.Async("Tick");
             if (!Game1.saveOnNewDay)
             {
                 this.quit = true;
@@ -122,6 +123,7 @@ namespace StardewValleyMP.Vanilla
                 }
                 ////////////////////////////////////////
                 this.loader = NewSaveGame.Save(); // SaveGame -> NewSaveGame
+                //Log.Async("new Save");
             }
             if (this.completePause >= 0)
             {
@@ -168,3 +170,4 @@ namespace StardewValleyMP.Vanilla
         }
     }
 }
+

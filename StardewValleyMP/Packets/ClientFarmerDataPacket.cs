@@ -134,10 +134,6 @@ namespace StardewValleyMP.Packets
             }
 
             client.stage = Server.Client.NetStage.WaitingForStart;
-            if (!Multiplayer.lobby)
-            {
-                server.JoinPlayer(client);
-            }
         }
         
         public static void addFixedLocationToOurWorld( GameLocation loc, string oldName, object extra )

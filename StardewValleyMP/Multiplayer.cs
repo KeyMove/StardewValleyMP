@@ -204,6 +204,7 @@ namespace StardewValleyMP
                 bool othersReady = true;
                 foreach ( Server.Client client in server.clients )
                 {
+                    //Log.Async(client.farmer.Name + ":" + client.stage);
                     othersReady = othersReady && client.stage == Server.Client.NetStage.WaitingForStart;
                 }
 
@@ -442,7 +443,7 @@ namespace StardewValleyMP
 
             if (Multiplayer.mode == Mode.Singleplayer) return;
 
-            if ( MultiplayerUtility.latestID > prevLatestId )
+            if (MultiplayerUtility.latestID > prevLatestId)
             {
                 sendFunc(new LatestIdPacket());
             }
@@ -450,10 +451,10 @@ namespace StardewValleyMP
 
             //Log.Async("pos:" + Game1.player.position.X + " " + Game1.player.position.Y);
             // Clients sometimes get stuck in the top-right corner and can't move on second day+
-            if ( Game1.player.currentLocation != null && Game1.player.currentLocation.name == "FarmHouse" &&
-                 Game1.player.currentLocation == Game1.currentLocation && Game1.player.currentLocation != Game1.getLocationFromName( Game1.player.currentLocation.name ) )
+            if (Game1.player.currentLocation != null && Game1.player.currentLocation.name == "FarmHouse" &&
+                 Game1.player.currentLocation == Game1.currentLocation && Game1.player.currentLocation != Game1.getLocationFromName(Game1.player.currentLocation.name))
             {
-                Game1.player.currentLocation = Game1.getLocationFromName( Game1.player.currentLocation.name );
+                Game1.player.currentLocation = Game1.getLocationFromName(Game1.player.currentLocation.name);
                 Game1.currentLocation = Game1.player.currentLocation;
                 Game1.currentLocation.resetForPlayerEntry();
             }
@@ -461,16 +462,20 @@ namespace StardewValleyMP
             if (Game1.newDay)
             {
                 didNewDay = true;
+                //if (mode == Mode.Host && Game1.activeClickableMenu is WaitOtherPlayerMenu)
+                //    Game1.freezeControls = prevFreezeControls = false;
+                //else
+                //    Game1.freezeControls = prevFreezeControls = true;
                 Game1.freezeControls = prevFreezeControls = true;
                 Game1.player.CanMove = false;
-                if ( !sentNextDayPacket )
+                if (!sentNextDayPacket)
                 {
                     ChatMenu.chat.Add(new ChatEntry(null, Game1.player.name + " is in bed."));
-                    if ( mode == Mode.Host )
+                    if (mode == Mode.Host)
                     {
                         server.broadcast(new ChatPacket(255, Game1.player.name + " is in bed."));
                     }
-                    else if ( mode == Mode.Client )
+                    else if (mode == Mode.Client)
                     {
                         client.stage = Client.NetStage.Waiting;
 
@@ -484,17 +489,17 @@ namespace StardewValleyMP
                                 Thread.Sleep(5);
                             }
 
-                            foreach ( GameLocation loc in SaveGame.loaded.locations )
+                            foreach (GameLocation loc in SaveGame.loaded.locations)
                             {
                                 List<NPC> toRemove = new List<NPC>();
-                                foreach ( NPC npc in loc.characters )
+                                foreach (NPC npc in loc.characters)
                                 {
-                                    if ( npc is StardewValley.Monsters.RockGolem || npc is StardewValley.Monsters.Bat )
+                                    if (npc is StardewValley.Monsters.RockGolem || npc is StardewValley.Monsters.Bat)
                                     {
                                         toRemove.Add(npc);
                                     }
                                 }
-                                foreach ( NPC npc in toRemove )
+                                foreach (NPC npc in toRemove)
                                 {
                                     loc.characters.Remove(npc);
                                 }
@@ -506,7 +511,7 @@ namespace StardewValleyMP
                             sendFunc(new ClientFarmerDataPacket(Encoding.UTF8.GetString(tmp.ToArray())));
                             //SaveGame.loaded = oldLoaded;
                         }
-                        catch ( Exception e )
+                        catch (Exception e)
                         {
                             Log.Async("Exception transitioning to next day: " + e);
                             ChatMenu.chat.Add(new ChatEntry(null, "Something went wrong transitioning days."));
@@ -520,24 +525,50 @@ namespace StardewValleyMP
                     }
                     sentNextDayPacket = true;
                 }
-
-                if ( waitingOnOthers() && Game1.fadeToBlackAlpha > 0.625f )
+                bool WaitOtherPlayer = (waitingOnOthers() && Game1.fadeToBlackAlpha > 0.625f);
+                if (WaitOtherPlayer)
                 {
                     Game1.fadeToBlackAlpha = 0.625f;
+                    //if (mode == Mode.Host)
+                    //    if (Game1.activeClickableMenu == null)
+                    //    {
+                    //        Game1.activeClickableMenu = new WaitOtherPlayerMenu();
+                    //        Game1.freezeControls = prevFreezeControls = false;
+                    //    }
+                    //    else
+                    //    {
+                    //        if (Game1.activeClickableMenu is WaitOtherPlayerMenu)
+                    //        {
+                    //            if (((WaitOtherPlayerMenu)Game1.activeClickableMenu).isCheck)
+                    //            {
+                    //                Game1.exitActiveMenu();
+                    //                Game1.freezeControls = prevFreezeControls = false;
+                    //                Game1.newDay = false;
+                    //                Game1.fadeToBlackAlpha = 0;
+                    //                ChatMenu.chat.Add(new ChatEntry(null, Game1.player.name + " 离开了床."));
+                    //                server.broadcast(new ChatPacket(255, Game1.player.name + " 离开了床."));
+                    //            }
+                    //        }
+                    //    }
+                }
+                else
+                {
+
                 }
             }
             else sentNextDayPacket = false;
 
             // We want people to wait for everyone
+            //Log.Async("new Day:" + Game1.newDay);
             //Log.Async("menu:"+Game1.activeClickableMenu);
-            if (Game1.activeClickableMenu is SaveGameMenu && Game1.activeClickableMenu.GetType() != typeof( NewSaveGameMenu ) )
+            if (Game1.activeClickableMenu is SaveGameMenu && Game1.activeClickableMenu.GetType() != typeof(NewSaveGameMenu))
             {
                 Game1.activeClickableMenu = new NewSaveGameMenu();
             }
-            else if ( Game1.activeClickableMenu is ShippingMenu )
+            else if (Game1.activeClickableMenu is ShippingMenu)
             {
-                //Log.Async("Savegame:" + Util.GetInstanceField(typeof(ShippingMenu), Game1.activeClickableMenu, "saveGameMenu"));
-                SaveGameMenu menu = ( SaveGameMenu ) Util.GetInstanceField(typeof(ShippingMenu), Game1.activeClickableMenu, "saveGameMenu");
+                Log.Async("Savegame:" + Util.GetInstanceField(typeof(ShippingMenu), Game1.activeClickableMenu, "saveGameMenu"));
+                SaveGameMenu menu = (SaveGameMenu)Util.GetInstanceField(typeof(ShippingMenu), Game1.activeClickableMenu, "saveGameMenu");
                 if (menu != null && menu.GetType() != typeof(NewSaveGameMenu))
                 {
                     Util.SetInstanceField(typeof(ShippingMenu), Game1.activeClickableMenu, "saveGameMenu", new NewSaveGameMenu());
@@ -548,7 +579,7 @@ namespace StardewValleyMP
                 Events.fix();
             else
                 Events.reset();
-            
+
             // Causing issues after going a day? Maybe?
             // Plus it only fixes a few of the time pauses
             /*Game1.player.forceTimePass = true;
@@ -559,7 +590,7 @@ namespace StardewValleyMP
             }
             prevFreezeControls = Game1.freezeControls;*/
 
-            if (Multiplayer.mode == Mode.Host && server != null )
+            if (Multiplayer.mode == Mode.Host && server != null)
             {
                 server.update();
                 if (server == null) return;
@@ -588,10 +619,10 @@ namespace StardewValleyMP
             if (Game1.gameMode == 6) return; // Loading?
             // ^ TODO: Check if != 3 works
 
-            if ( Multiplayer.mode == Mode.Host && server != null && server.playing ||
-                 Multiplayer.mode == Mode.Client && client !=  null && client.stage == Client.NetStage.Playing )
+            if (Multiplayer.mode == Mode.Host && server != null && server.playing ||
+                 Multiplayer.mode == Mode.Client && client != null && client.stage == Client.NetStage.Playing)
             {
-                if ( Game1.newDay )
+                if (Game1.newDay)
                 {
                     return;
                 }
@@ -607,14 +638,14 @@ namespace StardewValleyMP
                         locations[loc.name].update();
                     }
 
-                    if ( loc is Farm )
+                    if (loc is Farm)
                     {
                         BuildableGameLocation farm = loc as BuildableGameLocation;
-                        foreach ( Building building in farm.buildings )
+                        foreach (Building building in farm.buildings)
                         {
-                            if ( building.indoors == null ) continue;
+                            if (building.indoors == null) continue;
 
-                            if ( !locations.ContainsKey( building.nameOfIndoors ) )
+                            if (!locations.ContainsKey(building.nameOfIndoors))
                                 locations.Add(building.nameOfIndoors, new LocationCache(building.indoors));
 
                             locations[loc.name].miniUpdate();
@@ -633,7 +664,7 @@ namespace StardewValleyMP
                 }
                 NPCMonitor.endChecks();
             }
-            
+
             Game1.player.FarmerSprite.setOwner(Game1.player);
         }
 
